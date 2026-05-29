@@ -4,7 +4,7 @@ $user = "root";
 $pass = "QerLGuWHBhIQUmdenSbljbmekEwRjriV";
 $db   = "railway";
 
-$conn = new mysqli($host, $user, $pass, $db);
+$conn = mysqli_connect("trolley.proxy.rlwy.net", "root", "QerLGuWHBhIQUmdenSbljbmekEwRjriV", "railway", 39090);
 
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
