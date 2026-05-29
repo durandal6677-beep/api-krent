@@ -3,6 +3,7 @@ $host = "trolley.proxy.rlwy.net";
 $user = "root";
 $pass = "QerLGuWHBhIQUmdenSbljbmekEwRjriV";
 $db   = "railway";
+$port = 39090;
 
 $conn = new mysqli($host, $user, $pass, $db, $port);
 
