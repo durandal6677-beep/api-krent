@@ -1,8 +1,8 @@
 <?php
-$host = "localhost";
+$host = "trolley.proxy.rlwy.net";
 $user = "root";
-$pass = "";
-$db   = "penyewaan";
+$pass = "QerLGuWHBhIQUmdenSbljbmekEwRjriV";
+$db   = "railway";
 
 $conn = new mysqli($host, $user, $pass, $db);
 
