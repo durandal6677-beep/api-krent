@@ -7,7 +7,7 @@ include 'koneksi.php';
 $filter = isset($_GET['filter']) ? $_GET['filter'] : 'Bulanan';
 $response = [];
 
-// Menentukan kondisi rentang waktu (Harian/Bulanan/Tahunan)
+// Menentukan kondisi rentang waktu UNTUK KOTAK RINGKASAN
 $where_date = "";
 if ($filter == 'Harian') {
     $where_date = "DATE(tanggal_sewa) = CURDATE()";
@@ -33,41 +33,38 @@ try {
     ");
     $response['active_orders'] = $q_active ? (mysqli_fetch_assoc($q_active)['total'] ?? 0) : 0;
 
-    // 2. Data Grafik (Perbaikan Logika Waktu agar tidak ganda)
+    // 2. Data Grafik (DIURUTKAN SECARA KRONOLOGIS)
     $chart_data = [];
     if ($filter == 'Harian') {
-        $hari_indo = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
-        for ($i = 6; $i >= 0; $i--) {
-            $date = date('Y-m-d', strtotime("-$i days"));
-            $day_en = date('w', strtotime($date));
+        // Tampilkan 1 minggu penuh urut dari Senin s/d Minggu
+        $hari_indo = [1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu'];
+        $monday = strtotime('monday this week'); // Ambil tanggal hari senin di minggu ini
+        
+        for ($i = 0; $i < 7; $i++) {
+            $date = date('Y-m-d', strtotime("+$i days", $monday));
+            $day_num = date('N', strtotime($date)); // 1 (Senin) - 7 (Minggu)
+            
             $q_chart = mysqli_query($conn, "SELECT SUM(total_harga) as total FROM penyewaan WHERE DATE(tanggal_sewa) = '$date' AND status_penyewaan != 'Menunggu Deposit' AND status_penyewaan != 'Dibatalkan'");
             $total = $q_chart ? (mysqli_fetch_assoc($q_chart)['total'] ?? 0) : 0;
-            $chart_data[] = ["day" => $hari_indo[$day_en], "total" => (float)$total];
+            $chart_data[] = ["day" => $hari_indo[$day_num], "total" => (float)$total];
         }
     } elseif ($filter == 'Tahunan') {
-        for ($i = 6; $i >= 0; $i--) {
+        // Tampilkan 5 tahun terakhir secara berurutan
+        for ($i = 4; $i >= 0; $i--) {
             $year = date('Y', strtotime("-$i years"));
             $q_chart = mysqli_query($conn, "SELECT SUM(total_harga) as total FROM penyewaan WHERE YEAR(tanggal_sewa) = '$year' AND status_penyewaan != 'Menunggu Deposit' AND status_penyewaan != 'Dibatalkan'");
             $total = $q_chart ? (mysqli_fetch_assoc($q_chart)['total'] ?? 0) : 0;
             $chart_data[] = ["day" => $year, "total" => (float)$total];
         }
-    } else { // Bulanan (Logika Baru yang Aman dari Bug Akhir Bulan)
-        $bln_indo = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
-        $dt = new DateTime('first day of this month');
+    } else { 
+        // Bulanan (Tampilkan urut Januari - Desember tahun ini)
+        $bln_indo = [1=>'Jan', 2=>'Feb', 3=>'Mar', 4=>'Apr', 5=>'Mei', 6=>'Jun', 7=>'Jul', 8=>'Ags', 9=>'Sep', 10=>'Okt', 11=>'Nov', 12=>'Des'];
+        $year = date('Y');
         
-        for ($i = 6; $i >= 0; $i--) {
-            $dt_clone = clone $dt;
-            if ($i > 0) {
-                $dt_clone->modify("-$i months");
-            }
-            $month = $dt_clone->format('n');
-            $year = $dt_clone->format('Y');
-            
-            $q_chart = mysqli_query($conn, "SELECT SUM(total_harga) as total FROM penyewaan WHERE MONTH(tanggal_sewa) = '$month' AND YEAR(tanggal_sewa) = '$year' AND status_penyewaan != 'Menunggu Deposit' AND status_penyewaan != 'Dibatalkan'");
+        for ($m = 1; $m <= 12; $m++) {
+            $q_chart = mysqli_query($conn, "SELECT SUM(total_harga) as total FROM penyewaan WHERE MONTH(tanggal_sewa) = '$m' AND YEAR(tanggal_sewa) = '$year' AND status_penyewaan != 'Menunggu Deposit' AND status_penyewaan != 'Dibatalkan'");
             $total = $q_chart ? (mysqli_fetch_assoc($q_chart)['total'] ?? 0) : 0;
-            
-            // Tambahkan tahun agar lebih informatif (contoh: Jan 2026)
-            $chart_data[] = ["day" => $bln_indo[$month] . " " . $year, "total" => (float)$total];
+            $chart_data[] = ["day" => $bln_indo[$m], "total" => (float)$total];
         }
     }
     $response['chart_data'] = $chart_data;
