@@ -10,25 +10,35 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 include 'koneksi.php';
 
 $email = $_POST['email'];
-$password = $_POST['password'];
+$password_ketikan = $_POST['password'];
 
-// Cek di tabel pelanggan
-$queryPelanggan = "SELECT * FROM pelanggan WHERE email='$email' AND password='$password'";
+
+$queryPelanggan = "SELECT * FROM pelanggan WHERE email='$email'";
 $resPelanggan = mysqli_query($conn, $queryPelanggan);
 
 if (mysqli_num_rows($resPelanggan) > 0) {
     $data = mysqli_fetch_assoc($resPelanggan);
-    echo json_encode(["status" => "success", "role" => "pelanggan", "data" => $data]);
-} else {
-    // Jika bukan pelanggan, cek di tabel admin
-    $queryAdmin = "SELECT * FROM admin WHERE email='$email' AND password='$password'";
-    $resAdmin = mysqli_query($conn, $queryAdmin);
+    $password_database = $data['password']; 
 
-    if (mysqli_num_rows($resAdmin) > 0) {
-        $data = mysqli_fetch_assoc($resAdmin);
+    
+    if (password_verify($password_ketikan, $password_database) || $password_ketikan == $password_database) {
+        echo json_encode(["status" => "success", "role" => "pelanggan", "data" => $data]);
+        exit();
+    }
+} 
+
+$queryAdmin = "SELECT * FROM admin WHERE email='$email'";
+$resAdmin = mysqli_query($conn, $queryAdmin);
+
+if (mysqli_num_rows($resAdmin) > 0) {
+    $data = mysqli_fetch_assoc($resAdmin);
+    $password_database = $data['password'];
+
+    if (password_verify($password_ketikan, $password_database) || $password_ketikan == $password_database) {
         echo json_encode(["status" => "success", "role" => "admin", "data" => $data]);
-    } else {
-        echo json_encode(["status" => "error", "message" => "Email atau Password Salah"]);
+        exit();
     }
 }
+
+echo json_encode(["status" => "error", "message" => "Email atau Password Salah"]);
 ?>
