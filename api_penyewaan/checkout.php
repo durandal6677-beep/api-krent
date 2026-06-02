@@ -10,7 +10,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 }
 include 'koneksi.php';
 
-// Menangkap data JSON dari MultipartRequest (Flutter)
 $dataRaw = isset($_POST['data']) ? $_POST['data'] : file_get_contents("php://input");
 $data = json_decode($dataRaw, true);
 $response = [];
@@ -23,14 +22,12 @@ if ($data) {
     $metode_pembayaran = isset($data['metode_pembayaran']) ? $data['metode_pembayaran'] : '';
     $items = $data['items'];
 
-    // LOGIKA STATUS
-    if ($metode_pembayaran == "Tunai / Cash") {
-        $status = "Menunggu Pembayaran"; // Datang ke toko
+    if ($metode_pembayaran == "Bayar Tunai di Tempat") {
+        $status = "Menunggu Pembayaran"; 
     } else {
-        $status = "Menunggu Konfirmasi"; // Sudah transfer, tunggu di-ACC admin
+        $status = "Menunggu Konfirmasi"; 
     }
 
-    // PROSES UPLOAD BUKTI TRANSFER
     $bukti_name = "";
     if (isset($_FILES['bukti']['name']) && !empty($_FILES['bukti']['name'])) {
         $bukti_name = "bukti_" . time() . "_" . basename($_FILES['bukti']['name']);
@@ -41,7 +38,6 @@ if ($data) {
     mysqli_begin_transaction($conn);
 
     try {
-        // Simpan nama file ke kolom bukti_pembayaran
         $query_penyewaan = "INSERT INTO penyewaan (id_pelanggan, tanggal_sewa, tanggal_kembali, total_harga, metode_pembayaran, status_penyewaan, bukti_pembayaran) 
                             VALUES ('$id_pelanggan', '$tanggal_sewa', '$tanggal_kembali', '$total_harga', '$metode_pembayaran', '$status', '$bukti_name')";
         
