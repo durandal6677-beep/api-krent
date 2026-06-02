@@ -25,6 +25,10 @@ try {
     $q_orders = mysqli_query($conn, "SELECT COUNT(*) as total FROM penyewaan WHERE $where_date AND status_penyewaan != 'Dibatalkan'");
     $response['total_orders'] = $q_orders ? (mysqli_fetch_assoc($q_orders)['total'] ?? 0) : 0;
 
+    // Menghitung Kostum yang Sedang Disewa (Aktif)
+    $q_active = mysqli_query($conn, "SELECT COUNT(*) as total FROM penyewaan WHERE status_penyewaan = 'Disewa'");
+    $response['active_orders'] = $q_active ? (mysqli_fetch_assoc($q_active)['total'] ?? 0) : 0;
+
     // 2. Data Grafik Pendapatan (Line Chart)
     $chart_data = [];
     if ($filter == 'Harian') {
@@ -48,17 +52,18 @@ try {
     }
     $response['chart_data'] = $chart_data;
 
-    // 3. Kostum Populer (BAR CHART)
+    // 3. Kostum Populer (BAR CHART) - 🔻 REVISI PENGGABUNGAN NAMA KOSTUM 🔻
     $q_popular = mysqli_query($conn, "
         SELECT k.nama_kostum, SUM(dp.jumlah) as total_disewa
         FROM detail_penyewaan dp
         JOIN kostum k ON dp.id_kostum = k.id_kostum
         JOIN penyewaan p ON dp.id_penyewaan = p.id_penyewaan
         WHERE $where_date AND p.status_penyewaan NOT IN ('Dibatalkan', 'Menunggu Pembayaran')
-        GROUP BY k.id_kostum
+        GROUP BY k.nama_kostum 
         ORDER BY total_disewa DESC
         LIMIT 5
     ");
+    
     $popular_data = [];
     if ($q_popular) {
         while ($row = mysqli_fetch_assoc($q_popular)) {
@@ -72,7 +77,7 @@ try {
 
     // 4. Rincian Seluruh Transaksi (Tabel Laporan)
     $q_trans = mysqli_query($conn, "
-        SELECT p.tanggal_sewa, p.status_penyewaan, p.total_harga, pel.nama as nama_pelanggan,
+        SELECT p.id_penyewaan, p.tanggal_sewa, p.status_penyewaan, p.total_harga, pel.nama as nama_pelanggan,
                GROUP_CONCAT(CONCAT(k.nama_kostum, ' (', dp.jumlah, ')') SEPARATOR ', ') as kostum_disewa
         FROM penyewaan p
         JOIN pelanggan pel ON p.id_pelanggan = pel.id_pelanggan
@@ -82,6 +87,7 @@ try {
         GROUP BY p.id_penyewaan
         ORDER BY p.tanggal_sewa DESC
     ");
+    
     $transactions = [];
     if ($q_trans) {
         while ($row = mysqli_fetch_assoc($q_trans)) {
