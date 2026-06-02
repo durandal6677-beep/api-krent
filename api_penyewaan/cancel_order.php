@@ -23,7 +23,7 @@ try {
     // 1. Ubah status pesanan menjadi Dibatalkan
     $query_update = "UPDATE penyewaan SET status_penyewaan = 'Dibatalkan' WHERE id_penyewaan = '$id_penyewaan'";
     if (!mysqli_query($conn, $query_update)) {
-        throw new Exception("Gagal update status");
+        throw new Exception("Gagal update status: " . mysqli_error($conn));
     }
 
     // 2. Cari detail kostum apa saja yang disewa di pesanan ini
@@ -35,8 +35,11 @@ try {
         $id_kostum = $row['id_kostum'];
         $jumlah_kembali = $row['jumlah'];
 
-        $query_kembalikan_stok = "UPDATE kostum SET stok = stok + $jumlah_kembali WHERE id = '$id_kostum'";
-        mysqli_query($conn, $query_kembalikan_stok);
+        $query_kembalikan_stok = "UPDATE kostum SET stok = stok + $jumlah_kembali WHERE id_kostum = '$id_kostum'";
+        
+        if (!mysqli_query($conn, $query_kembalikan_stok)) {
+             throw new Exception("Gagal mengembalikan stok: " . mysqli_error($conn));
+        }
     }
 
     mysqli_commit($conn);
