@@ -4,17 +4,22 @@ header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json");
 include 'koneksi.php';
 
+// 🔻 PERBAIKAN: Menangkap Filter Bulan & Tahun dari Flutter 🔻
 $filter = isset($_GET['filter']) ? $_GET['filter'] : 'Bulanan';
+$month = isset($_GET['month']) ? (int)$_GET['month'] : date('m');
+$year = isset($_GET['year']) ? (int)$_GET['year'] : date('Y');
+
 $response = [];
 
-// Menentukan kondisi rentang waktu
+// Menentukan kondisi rentang waktu berdasarkan inputan
 $where_date = "";
 if ($filter == 'Harian') {
     $where_date = "DATE(tanggal_sewa) = CURDATE()";
 } elseif ($filter == 'Tahunan') {
-    $where_date = "YEAR(tanggal_sewa) = YEAR(CURDATE())";
-} else { // Default Bulanan
-    $where_date = "MONTH(tanggal_sewa) = MONTH(CURDATE()) AND YEAR(tanggal_sewa) = YEAR(CURDATE())";
+    $where_date = "YEAR(tanggal_sewa) = $year";
+} else { 
+    // Filter Bulanan akan menggunakan Bulan dan Tahun spesifik
+    $where_date = "MONTH(tanggal_sewa) = $month AND YEAR(tanggal_sewa) = $year";
 }
 
 try {
@@ -25,7 +30,6 @@ try {
     $q_orders = mysqli_query($conn, "SELECT COUNT(*) as total FROM penyewaan WHERE $where_date AND status_penyewaan != 'Dibatalkan'");
     $response['total_orders'] = $q_orders ? (mysqli_fetch_assoc($q_orders)['total'] ?? 0) : 0;
 
-    // Menghitung Kostum yang Sedang Disewa (Aktif)
     $q_active = mysqli_query($conn, "SELECT COUNT(*) as total FROM penyewaan WHERE status_penyewaan = 'Disewa'");
     $response['active_orders'] = $q_active ? (mysqli_fetch_assoc($q_active)['total'] ?? 0) : 0;
 
@@ -43,7 +47,7 @@ try {
         }
     } else { 
         $bln_indo = [1=>'Jan', 2=>'Feb', 3=>'Mar', 4=>'Apr', 5=>'Mei', 6=>'Jun', 7=>'Jul', 8=>'Ags', 9=>'Sep', 10=>'Okt', 11=>'Nov', 12=>'Des'];
-        $year = date('Y');
+        // Menggunakan Tahun yang Dipilih
         for ($m = 1; $m <= 12; $m++) {
             $q_chart = mysqli_query($conn, "SELECT SUM(total_harga) as total FROM penyewaan WHERE MONTH(tanggal_sewa) = '$m' AND YEAR(tanggal_sewa) = '$year' AND status_penyewaan NOT IN ('Dibatalkan', 'Menunggu Pembayaran')");
             $total = $q_chart ? (mysqli_fetch_assoc($q_chart)['total'] ?? 0) : 0;
@@ -52,9 +56,9 @@ try {
     }
     $response['chart_data'] = $chart_data;
 
-    // 3. Kostum Populer (BAR CHART) - 🔻 REVISI PENGGABUNGAN NAMA KOSTUM 🔻
+    // 3. Kostum Populer (BAR CHART)
     $q_popular = mysqli_query($conn, "
-        SELECT k.nama_kostum, SUM(dp.jumlah) as total_disewa
+        SELECT k.nama_kostum, SUM(dp.jumlah) as total_disewa, k.foto_kostum, k.kategori
         FROM detail_penyewaan dp
         JOIN kostum k ON dp.id_kostum = k.id_kostum
         JOIN penyewaan p ON dp.id_penyewaan = p.id_penyewaan
@@ -69,7 +73,9 @@ try {
         while ($row = mysqli_fetch_assoc($q_popular)) {
             $popular_data[] = [
                 "nama" => $row['nama_kostum'],
-                "total" => (int)$row['total_disewa']
+                "total" => (int)$row['total_disewa'],
+                "foto_kostum" => $row['foto_kostum'],
+                "kategori" => $row['kategori']
             ];
         }
     }
