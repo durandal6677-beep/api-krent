@@ -4,26 +4,28 @@ header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json");
 include 'koneksi.php';
 
-// 🔻 PERBAIKAN: Menangkap Filter Bulan & Tahun dari Flutter 🔻
 $filter = isset($_GET['filter']) ? $_GET['filter'] : 'Bulanan';
+$selected_date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d'); // 🔻 Menerima Tanggal
 $month = isset($_GET['month']) ? (int)$_GET['month'] : date('m');
 $year = isset($_GET['year']) ? (int)$_GET['year'] : date('Y');
 
 $response = [];
 
-// Menentukan kondisi rentang waktu berdasarkan inputan
+// 🔻 LOGIKA FILTER BARU YANG LEBIH AKURAT 🔻
 $where_date = "";
 if ($filter == 'Harian') {
-    $where_date = "DATE(tanggal_sewa) = CURDATE()";
+    $where_date = "DATE(tanggal_sewa) = '$selected_date'";
+} elseif ($filter == 'Mingguan') {
+    // YEARWEEK dengan parameter 1 membuat perhitungan minggu dimulai hari Senin s/d Minggu
+    $where_date = "YEARWEEK(tanggal_sewa, 1) = YEARWEEK('$selected_date', 1)";
 } elseif ($filter == 'Tahunan') {
     $where_date = "YEAR(tanggal_sewa) = $year";
 } else { 
-    // Filter Bulanan akan menggunakan Bulan dan Tahun spesifik
+    // Bulanan
     $where_date = "MONTH(tanggal_sewa) = $month AND YEAR(tanggal_sewa) = $year";
 }
 
 try {
-    // 1. Ringkasan Pendapatan & Pesanan
     $q_income = mysqli_query($conn, "SELECT SUM(total_harga) as total FROM penyewaan WHERE $where_date AND status_penyewaan NOT IN ('Dibatalkan', 'Menunggu Pembayaran')");
     $response['income_total'] = $q_income ? (mysqli_fetch_assoc($q_income)['total'] ?? 0) : 0;
 
@@ -33,11 +35,12 @@ try {
     $q_active = mysqli_query($conn, "SELECT COUNT(*) as total FROM penyewaan WHERE status_penyewaan = 'Disewa'");
     $response['active_orders'] = $q_active ? (mysqli_fetch_assoc($q_active)['total'] ?? 0) : 0;
 
-    // 2. Data Grafik Pendapatan (Line Chart)
     $chart_data = [];
-    if ($filter == 'Harian') {
-        $hari_indo = [1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu'];
-        $monday = strtotime('monday this week');
+    if ($filter == 'Harian' || $filter == 'Mingguan') {
+        // Jika mingguan, kita tampilkan grafik Senin - Minggu di minggu tersebut
+        $hari_indo = [1 => 'Sen', 2 => 'Sel', 3 => 'Rab', 4 => 'Kam', 5 => 'Jum', 6 => 'Sab', 7 => 'Min'];
+        // Cari hari senin di minggu yang dipilih
+        $monday = strtotime('monday this week', strtotime($selected_date));
         for ($i = 0; $i < 7; $i++) {
             $date = date('Y-m-d', strtotime("+$i days", $monday));
             $day_num = date('N', strtotime($date));
@@ -47,7 +50,6 @@ try {
         }
     } else { 
         $bln_indo = [1=>'Jan', 2=>'Feb', 3=>'Mar', 4=>'Apr', 5=>'Mei', 6=>'Jun', 7=>'Jul', 8=>'Ags', 9=>'Sep', 10=>'Okt', 11=>'Nov', 12=>'Des'];
-        // Menggunakan Tahun yang Dipilih
         for ($m = 1; $m <= 12; $m++) {
             $q_chart = mysqli_query($conn, "SELECT SUM(total_harga) as total FROM penyewaan WHERE MONTH(tanggal_sewa) = '$m' AND YEAR(tanggal_sewa) = '$year' AND status_penyewaan NOT IN ('Dibatalkan', 'Menunggu Pembayaran')");
             $total = $q_chart ? (mysqli_fetch_assoc($q_chart)['total'] ?? 0) : 0;
@@ -56,7 +58,7 @@ try {
     }
     $response['chart_data'] = $chart_data;
 
-    // 3. Kostum Populer (BAR CHART)
+    // Kostum Populer
     $q_popular = mysqli_query($conn, "
         SELECT k.nama_kostum, SUM(dp.jumlah) as total_disewa, k.foto_kostum, k.kategori
         FROM detail_penyewaan dp
@@ -81,7 +83,10 @@ try {
     }
     $response['popular_chart'] = $popular_data;
 
-    // 4. Rincian Seluruh Transaksi (Tabel Laporan)
+    // 🔻 MENGIRIM SIAPA KOSTUM TERLARIS NOMOR 1 🔻
+    $response['top_costume_summary'] = empty($popular_data) ? null : $popular_data[0];
+
+    // Transaksi
     $q_trans = mysqli_query($conn, "
         SELECT p.id_penyewaan, p.tanggal_sewa, p.status_penyewaan, p.total_harga, pel.nama as nama_pelanggan,
                GROUP_CONCAT(CONCAT(k.nama_kostum, ' (', dp.jumlah, ')') SEPARATOR ', ') as kostum_disewa
