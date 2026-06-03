@@ -11,11 +11,10 @@ $year = isset($_GET['year']) ? (int)$_GET['year'] : date('Y');
 
 $response = [];
 
+// 🔻 OPSI MINGGUAN DIHAPUS 🔻
 $where_date = "";
 if ($filter == 'Harian') {
     $where_date = "DATE(tanggal_sewa) = '$selected_date'";
-} elseif ($filter == 'Mingguan') {
-    $where_date = "YEARWEEK(tanggal_sewa, 1) = YEARWEEK('$selected_date', 1)";
 } elseif ($filter == 'Tahunan') {
     $where_date = "YEAR(tanggal_sewa) = $year";
 } else { 
@@ -33,7 +32,7 @@ try {
     $response['active_orders'] = $q_active ? (mysqli_fetch_assoc($q_active)['total'] ?? 0) : 0;
 
     $chart_data = [];
-    if ($filter == 'Harian' || $filter == 'Mingguan') {
+    if ($filter == 'Harian') {
         $hari_indo = [1 => 'Sen', 2 => 'Sel', 3 => 'Rab', 4 => 'Kam', 5 => 'Jum', 6 => 'Sab', 7 => 'Min'];
         $monday = strtotime('monday this week', strtotime($selected_date));
         for ($i = 0; $i < 7; $i++) {
@@ -53,14 +52,14 @@ try {
     }
     $response['chart_data'] = $chart_data;
 
-    // 🔻 PERBAIKAN: Menghapus kolom spesifik agar tidak memicu error ONLY_FULL_GROUP_BY 🔻
+    // 🔻 PERBAIKAN: Menambahkan kolom ukuran untuk membedakan duplikat 🔻
     $q_popular = mysqli_query($conn, "
-        SELECT k.nama_kostum, SUM(dp.jumlah) as total_disewa
+        SELECT k.nama_kostum, dp.ukuran, SUM(dp.jumlah) as total_disewa, k.foto_kostum, k.kategori
         FROM detail_penyewaan dp
         JOIN kostum k ON dp.id_kostum = k.id_kostum
         JOIN penyewaan p ON dp.id_penyewaan = p.id_penyewaan
         WHERE $where_date AND p.status_penyewaan NOT IN ('Dibatalkan', 'Menunggu Pembayaran')
-        GROUP BY k.nama_kostum 
+        GROUP BY k.nama_kostum, dp.ukuran, k.foto_kostum, k.kategori 
         ORDER BY total_disewa DESC
         LIMIT 5
     ");
@@ -68,16 +67,20 @@ try {
     $popular_data = [];
     if ($q_popular) {
         while ($row = mysqli_fetch_assoc($q_popular)) {
+            // Gabungkan Nama dan Ukuran agar terlihat rapi di grafik & tabel
+            $ukuran_teks = !empty($row['ukuran']) ? " (Size " . $row['ukuran'] . ")" : "";
+            
             $popular_data[] = [
-                "nama" => $row['nama_kostum'],
-                "total" => (int)$row['total_disewa']
+                "nama" => $row['nama_kostum'] . $ukuran_teks,
+                "total" => (int)$row['total_disewa'],
+                "foto_kostum" => $row['foto_kostum'],
+                "kategori" => $row['kategori']
             ];
         }
     }
     $response['popular_chart'] = $popular_data;
     $response['top_costume_summary'] = empty($popular_data) ? null : $popular_data[0];
 
-    // 🔻 PERBAIKAN: Memasukkan semua kolom SELECT ke dalam GROUP BY agar lolos verifikasi MySQL 🔻
     $q_trans = mysqli_query($conn, "
         SELECT p.id_penyewaan, p.tanggal_sewa, p.status_penyewaan, p.total_harga, pel.nama as nama_pelanggan,
                GROUP_CONCAT(CONCAT(k.nama_kostum, ' (', dp.jumlah, ')') SEPARATOR ', ') as kostum_disewa
