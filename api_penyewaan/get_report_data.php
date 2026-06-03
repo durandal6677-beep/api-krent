@@ -5,23 +5,20 @@ header("Content-Type: application/json");
 include 'koneksi.php';
 
 $filter = isset($_GET['filter']) ? $_GET['filter'] : 'Bulanan';
-$selected_date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d'); // 🔻 Menerima Tanggal
+$selected_date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
 $month = isset($_GET['month']) ? (int)$_GET['month'] : date('m');
 $year = isset($_GET['year']) ? (int)$_GET['year'] : date('Y');
 
 $response = [];
 
-// 🔻 LOGIKA FILTER BARU YANG LEBIH AKURAT 🔻
 $where_date = "";
 if ($filter == 'Harian') {
     $where_date = "DATE(tanggal_sewa) = '$selected_date'";
 } elseif ($filter == 'Mingguan') {
-    // YEARWEEK dengan parameter 1 membuat perhitungan minggu dimulai hari Senin s/d Minggu
     $where_date = "YEARWEEK(tanggal_sewa, 1) = YEARWEEK('$selected_date', 1)";
 } elseif ($filter == 'Tahunan') {
     $where_date = "YEAR(tanggal_sewa) = $year";
 } else { 
-    // Bulanan
     $where_date = "MONTH(tanggal_sewa) = $month AND YEAR(tanggal_sewa) = $year";
 }
 
@@ -37,9 +34,7 @@ try {
 
     $chart_data = [];
     if ($filter == 'Harian' || $filter == 'Mingguan') {
-        // Jika mingguan, kita tampilkan grafik Senin - Minggu di minggu tersebut
         $hari_indo = [1 => 'Sen', 2 => 'Sel', 3 => 'Rab', 4 => 'Kam', 5 => 'Jum', 6 => 'Sab', 7 => 'Min'];
-        // Cari hari senin di minggu yang dipilih
         $monday = strtotime('monday this week', strtotime($selected_date));
         for ($i = 0; $i < 7; $i++) {
             $date = date('Y-m-d', strtotime("+$i days", $monday));
@@ -58,9 +53,9 @@ try {
     }
     $response['chart_data'] = $chart_data;
 
-    // Kostum Populer
+    // 🔻 PERBAIKAN: Menghapus kolom spesifik agar tidak memicu error ONLY_FULL_GROUP_BY 🔻
     $q_popular = mysqli_query($conn, "
-        SELECT k.nama_kostum, SUM(dp.jumlah) as total_disewa, k.foto_kostum, k.kategori
+        SELECT k.nama_kostum, SUM(dp.jumlah) as total_disewa
         FROM detail_penyewaan dp
         JOIN kostum k ON dp.id_kostum = k.id_kostum
         JOIN penyewaan p ON dp.id_penyewaan = p.id_penyewaan
@@ -75,18 +70,14 @@ try {
         while ($row = mysqli_fetch_assoc($q_popular)) {
             $popular_data[] = [
                 "nama" => $row['nama_kostum'],
-                "total" => (int)$row['total_disewa'],
-                "foto_kostum" => $row['foto_kostum'],
-                "kategori" => $row['kategori']
+                "total" => (int)$row['total_disewa']
             ];
         }
     }
     $response['popular_chart'] = $popular_data;
-
-    // 🔻 MENGIRIM SIAPA KOSTUM TERLARIS NOMOR 1 🔻
     $response['top_costume_summary'] = empty($popular_data) ? null : $popular_data[0];
 
-    // Transaksi
+    // 🔻 PERBAIKAN: Memasukkan semua kolom SELECT ke dalam GROUP BY agar lolos verifikasi MySQL 🔻
     $q_trans = mysqli_query($conn, "
         SELECT p.id_penyewaan, p.tanggal_sewa, p.status_penyewaan, p.total_harga, pel.nama as nama_pelanggan,
                GROUP_CONCAT(CONCAT(k.nama_kostum, ' (', dp.jumlah, ')') SEPARATOR ', ') as kostum_disewa
@@ -95,7 +86,7 @@ try {
         JOIN detail_penyewaan dp ON p.id_penyewaan = dp.id_penyewaan
         JOIN kostum k ON dp.id_kostum = k.id_kostum
         WHERE $where_date
-        GROUP BY p.id_penyewaan
+        GROUP BY p.id_penyewaan, p.tanggal_sewa, p.status_penyewaan, p.total_harga, pel.nama
         ORDER BY p.tanggal_sewa DESC
     ");
     
