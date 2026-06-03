@@ -4,8 +4,6 @@ header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json");
 include 'koneksi.php';
 
-mysqli_query($conn, "SET SESSION sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''))");
-
 $filter = isset($_GET['filter']) ? $_GET['filter'] : 'Bulanan';
 $selected_date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
 $month = isset($_GET['month']) ? (int)$_GET['month'] : date('m');
@@ -55,11 +53,11 @@ try {
 
     $q_popular = mysqli_query($conn, "
         SELECT k.nama_kostum, dp.ukuran, SUM(dp.jumlah) as total_disewa, k.foto_kostum, k.kategori
-        FROM detail_penyewaan dp
+        FROM penyewaan p
+        JOIN detail_penyewaan dp ON p.id_penyewaan = dp.id_penyewaan
         JOIN kostum k ON dp.id_kostum = k.id_kostum
-        JOIN penyewaan p ON dp.id_penyewaan = p.id_penyewaan
         WHERE $where_date AND p.status_penyewaan NOT IN ('Dibatalkan', 'Menunggu Pembayaran')
-        GROUP BY k.nama_kostum, dp.ukuran 
+        GROUP BY k.nama_kostum, dp.ukuran, k.foto_kostum, k.kategori
         ORDER BY total_disewa DESC
         LIMIT 5
     ");
@@ -83,17 +81,18 @@ try {
         SELECT p.id_penyewaan, p.tanggal_sewa, p.status_penyewaan, p.total_harga, pel.nama as nama_pelanggan,
                GROUP_CONCAT(CONCAT(k.nama_kostum, ' (', dp.jumlah, ')') SEPARATOR ', ') as kostum_disewa
         FROM penyewaan p
-        JOIN pelanggan pel ON p.id_pelanggan = pel.id_pelanggan
-        JOIN detail_penyewaan dp ON p.id_penyewaan = dp.id_penyewaan
-        JOIN kostum k ON dp.id_kostum = k.id_kostum
+        LEFT JOIN pelanggan pel ON p.id_pelanggan = pel.id_pelanggan
+        LEFT JOIN detail_penyewaan dp ON p.id_penyewaan = dp.id_penyewaan
+        LEFT JOIN kostum k ON dp.id_kostum = k.id_kostum
         WHERE $where_date
-        GROUP BY p.id_penyewaan
+        GROUP BY p.id_penyewaan, p.tanggal_sewa, p.status_penyewaan, p.total_harga, pel.nama
         ORDER BY p.tanggal_sewa DESC
     ");
     
     $transactions = [];
     if ($q_trans) {
         while ($row = mysqli_fetch_assoc($q_trans)) {
+            $row['nama_pelanggan'] = $row['nama_pelanggan'] ? $row['nama_pelanggan'] : 'Pelanggan Umum';
             $transactions[] = $row;
         }
     }
