@@ -53,7 +53,6 @@ try {
     }
     $response['chart_data'] = $chart_data;
 
-    // KARENA SQL_MODE SUDAH DIMATIKAN, QUERY INI DIJAMIN 100% AMAN DARI ERROR
     $q_popular = mysqli_query($conn, "
         SELECT k.nama_kostum, dp.ukuran, SUM(dp.jumlah) as total_disewa, k.foto_kostum, k.kategori
         FROM detail_penyewaan dp
