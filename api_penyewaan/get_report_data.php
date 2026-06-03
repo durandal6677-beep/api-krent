@@ -51,13 +51,19 @@ try {
     }
     $response['chart_data'] = $chart_data;
 
+    // 🔻 MENGGUNAKAN KODINGAN ANDA YANG BERHASIL, DITAMBAH MAX() AGAR AMAN DARI ERROR MYSQL 🔻
     $q_popular = mysqli_query($conn, "
-        SELECT k.nama_kostum, dp.ukuran, SUM(dp.jumlah) as total_disewa, k.foto_kostum, k.kategori
-        FROM penyewaan p
-        JOIN detail_penyewaan dp ON p.id_penyewaan = dp.id_penyewaan
+        SELECT 
+            k.nama_kostum, 
+            dp.ukuran,
+            SUM(dp.jumlah) as total_disewa,
+            MAX(k.foto_kostum) as foto_kostum,
+            MAX(k.kategori) as kategori
+        FROM detail_penyewaan dp
         JOIN kostum k ON dp.id_kostum = k.id_kostum
+        JOIN penyewaan p ON dp.id_penyewaan = p.id_penyewaan
         WHERE $where_date AND p.status_penyewaan NOT IN ('Dibatalkan', 'Menunggu Pembayaran')
-        GROUP BY k.nama_kostum, dp.ukuran, k.foto_kostum, k.kategori
+        GROUP BY k.nama_kostum, dp.ukuran
         ORDER BY total_disewa DESC
         LIMIT 5
     ");
@@ -77,13 +83,14 @@ try {
     $response['popular_chart'] = $popular_data;
     $response['top_costume_summary'] = empty($popular_data) ? null : $popular_data[0];
 
+    // 🔻 MENGGUNAKAN KODINGAN ANDA YANG BERHASIL UNTUK TRANSAKSI (Ditambah info Size) 🔻
     $q_trans = mysqli_query($conn, "
         SELECT p.id_penyewaan, p.tanggal_sewa, p.status_penyewaan, p.total_harga, pel.nama as nama_pelanggan,
-               GROUP_CONCAT(CONCAT(k.nama_kostum, ' (', dp.jumlah, ')') SEPARATOR ', ') as kostum_disewa
+               GROUP_CONCAT(CONCAT(k.nama_kostum, ' - Size ', dp.ukuran, ' (', dp.jumlah, 'x)') SEPARATOR ', ') as kostum_disewa
         FROM penyewaan p
-        LEFT JOIN pelanggan pel ON p.id_pelanggan = pel.id_pelanggan
-        LEFT JOIN detail_penyewaan dp ON p.id_penyewaan = dp.id_penyewaan
-        LEFT JOIN kostum k ON dp.id_kostum = k.id_kostum
+        JOIN pelanggan pel ON p.id_pelanggan = pel.id_pelanggan
+        JOIN detail_penyewaan dp ON p.id_penyewaan = dp.id_penyewaan
+        JOIN kostum k ON dp.id_kostum = k.id_kostum
         WHERE $where_date
         GROUP BY p.id_penyewaan, p.tanggal_sewa, p.status_penyewaan, p.total_harga, pel.nama
         ORDER BY p.tanggal_sewa DESC
@@ -92,7 +99,6 @@ try {
     $transactions = [];
     if ($q_trans) {
         while ($row = mysqli_fetch_assoc($q_trans)) {
-            $row['nama_pelanggan'] = $row['nama_pelanggan'] ? $row['nama_pelanggan'] : 'Pelanggan Umum';
             $transactions[] = $row;
         }
     }
