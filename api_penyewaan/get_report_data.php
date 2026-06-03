@@ -11,7 +11,7 @@ $year = isset($_GET['year']) ? (int)$_GET['year'] : date('Y');
 
 $response = [];
 
-// 🔻 FILTER MINGGUAN DIHAPUS SESUAI PERMINTAAN 🔻
+// 🔻 Opsi Mingguan sudah dibuang 🔻
 $where_date = "";
 if ($filter == 'Harian') {
     $where_date = "DATE(tanggal_sewa) = '$selected_date'";
@@ -52,9 +52,9 @@ try {
     }
     $response['chart_data'] = $chart_data;
 
-    // 🔻 PENAMBAHAN UKURAN (SIZE) DAN FOTO DENGAN FUNGSI MAX() AGAR AMAN 🔻
+    // 🔻 PENGGABUNGAN NAMA & UKURAN MENGGUNAKAN QUERY ASLI ANDA (SANGAT AMAN) 🔻
     $q_popular = mysqli_query($conn, "
-        SELECT k.nama_kostum, dp.ukuran, SUM(dp.jumlah) as total_disewa, MAX(k.foto_kostum) as foto_kostum, MAX(k.kategori) as kategori
+        SELECT k.nama_kostum, dp.ukuran, SUM(dp.jumlah) as total_disewa
         FROM detail_penyewaan dp
         JOIN kostum k ON dp.id_kostum = k.id_kostum
         JOIN penyewaan p ON dp.id_penyewaan = p.id_penyewaan
@@ -67,22 +67,23 @@ try {
     $popular_data = [];
     if ($q_popular) {
         while ($row = mysqli_fetch_assoc($q_popular)) {
-            $ukuran_teks = !empty($row['ukuran']) ? " (Size " . $row['ukuran'] . ")" : "";
+            $nama_final = $row['nama_kostum'];
+            if (!empty($row['ukuran']) && $row['ukuran'] != '-') {
+                $nama_final .= " (Size " . $row['ukuran'] . ")";
+            }
             $popular_data[] = [
-                "nama" => $row['nama_kostum'] . $ukuran_teks,
-                "total" => (int)$row['total_disewa'],
-                "foto_kostum" => $row['foto_kostum'],
-                "kategori" => $row['kategori']
+                "nama" => $nama_final,
+                "total" => (int)$row['total_disewa']
             ];
         }
     }
     $response['popular_chart'] = $popular_data;
     $response['top_costume_summary'] = empty($popular_data) ? null : $popular_data[0];
 
-    // 🔻 PENAMBAHAN UKURAN PADA RINCIAN TRANSAKSI 🔻
+    // 🔻 PENAMBAHAN INFO SIZE DI TABEL TRANSAKSI MENGGUNAKAN QUERY ASLI ANDA 🔻
     $q_trans = mysqli_query($conn, "
         SELECT p.id_penyewaan, p.tanggal_sewa, p.status_penyewaan, p.total_harga, pel.nama as nama_pelanggan,
-               GROUP_CONCAT(CONCAT(k.nama_kostum, ' - Size ', dp.ukuran, ' (', dp.jumlah, 'x)') SEPARATOR ', ') as kostum_disewa
+               GROUP_CONCAT(CONCAT(k.nama_kostum, ' Size ', dp.ukuran, ' (', dp.jumlah, 'x)') SEPARATOR ', ') as kostum_disewa
         FROM penyewaan p
         JOIN pelanggan pel ON p.id_pelanggan = pel.id_pelanggan
         JOIN detail_penyewaan dp ON p.id_penyewaan = dp.id_penyewaan
